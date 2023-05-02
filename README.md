@@ -33,7 +33,7 @@ touch [filename] [username with r/w] - Create a new file
 
 mkdir [dirname] - Create a new directory
 
-ls - List all files and directories
+ls - List all files and directories(folders)
 
 cat [filename] - Write text to a file
 
@@ -41,7 +41,7 @@ read [filename] - Read the contents of a file
 
 rm [filename] - Delete a file
 
-rmdir [dirname] - Delete a directory
+rmdir [dirname] - Delete a directory(folder)
 
 restore [filename] - Restore a deleted file
 
