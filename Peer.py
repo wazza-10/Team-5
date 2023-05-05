@@ -7,34 +7,45 @@ from socket import *
 from threading import *
 from cryptography.fernet import Fernet
 
-file_path = os.path.dirname(os.path.realpath(__file__))
-
+#localhost
 CDS_IP = 'localhost'
 
-CDS_PORT_NUM = int(sys.argv[2]) if len(sys.argv) > 2 and int(sys.argv[2]) else 8080
+#port check
+if len(sys.argv) > 2 and int(sys.argv[2]):
+    CDS_PORT = int(sys.argv[2])
+else:
+    CDS_PORT = 8080
+
 
 IP = 'localhost'
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 and int(sys.argv[1]) else 8010
+if len(sys.argv) > 1 and int(sys.argv[1]):
+    PORT = int(sys.argv[1])
+else:
+    PORT = 8010
 
 
 with open('authentication_key.txt', 'r') as f:
     session_key = f.read()
 
+#generating key using fernet
 peer_key = Fernet.generate_key()
 peer_fernet_enc_dec = Fernet(peer_key)
 
+#socket connection
 p_sock = socket(AF_INET, SOCK_STREAM)
 p_sock.bind((IP, PORT))
 p_sock.listen(5)
 
+#creating peer_id variable
 peer_id = ''
 
-entity_mapper = {}
+user_entity_mapper = {}
 
-#encrypting code
+
+#encrypting code and decrypting code
 def encrypt_pipeline(json_obj):
-    with open('authentication_key.txt', 'r') as f:   #reading the line
+    with open('authentication_key.txt', 'r') as f:
         key = f.read()
     try:
         decoded_key_str = base64.urlsafe_b64decode(key)
@@ -42,11 +53,12 @@ def encrypt_pipeline(json_obj):
         cipher = fernet_enc_dec.encrypt(json.dumps(json_obj).encode('ascii'))
         return cipher
     except:
-        print("not allowed")
+        print("Authentication error")
+        raise Exception('Invalid Key')
 
-#decrypting the code
+
 def decrypt_pipeline(cipher):
-    with open('authentication_key.txt', 'r') as f:       #reading the line
+    with open('authentication_key.txt', 'r') as f:
         time.sleep(1)
         key = f.read()
     try:
@@ -55,10 +67,13 @@ def decrypt_pipeline(cipher):
         dictionary = json.loads(fernet_enc_dec.decrypt(cipher).decode('ascii'))
         return dictionary
     except:
-        print("not allowed")
+        print("Authentication error")
+        raise Exception('Invalid Key')
 
+#current file path
+curr_file_path = os.path.dirname(os.path.realpath(__file__))
 
-def menu_list():
+def user_menu_list():
     print("\n----------------Commands---------------")
     print("touch [filename] [username with r/w] - Create a new file")
     print("mkdir [dirname] - Create a new directory")
@@ -72,7 +87,7 @@ def menu_list():
     print("<quit> - Quit the application")
     print("-------------------------------------")
 
-def menu_inputs(choice):
+def menu_input_valid(choice):
     args_mapper = {
         'touch': 2,
         'cat': 1,
@@ -88,85 +103,88 @@ def menu_inputs(choice):
 
     args = choice.split(' ')
 
+    #input validation
     if args[0] in args_mapper:
-        #print(args)
-        #print(args_mapper)
         if len(args) != args_mapper[args[0]] + 1:
             print('{0}: Invalid Format'.format(args[0]))
-            time.sleep(3)
+            time.sleep(2)
             return False
         if args[0] == 'cat':
             (file_name, file_extension) = os.path.splitext(args[1])
             if not file_extension:
                 print('{0}: is not a writable file'.format(file_name))
-                time.sleep(3)
+                time.sleep(2)
                 return False
     else:
         print('\'{0}\' is not a valid command'.format(args[0]))
-        time.sleep(3)
+        time.sleep(2)
         return False
     return True
 
 def menu():
-    server_sock = socket(AF_INET, SOCK_STREAM)
-    server_sock.connect((CDS_IP, int(CDS_PORT_NUM)))
+    CDS_sock = socket(AF_INET, SOCK_STREAM)  #cds connection
+    CDS_sock.connect((CDS_IP, int(CDS_PORT))) #connection made
 
     while True:
         username = input('username: >> ')
         password = input('password: >> ')
-        server_sock.send(encrypt_pipeline({
+        #sendign to cds
+        CDS_sock.send(encrypt_pipeline({
             'username': username,
             'password': password
         }))
-        CDS_response = decrypt_pipeline(server_sock.recv(1024))
+        #getting response
+        CDS_response = decrypt_pipeline(CDS_sock.recv(1024))
         print(CDS_response['payload'])
         if 'error' not in CDS_response:
             break
 
-    server_sock.send(encrypt_pipeline({
+    CDS_sock.send(encrypt_pipeline({
         'IP': IP,
         'PORT': str(PORT)
     }))
-    CDS_response = decrypt_pipeline(server_sock.recv(1024))
+    CDS_response = decrypt_pipeline(CDS_sock.recv(1024))
+    #printing CDS response
     print(CDS_response)
     print(CDS_response['message'])
 
     global peer_id
     peer_id = CDS_response['peer_id']
-    path = os.path.join(file_path, str(peer_id))
+    path = os.path.join(curr_file_path, str(peer_id))
     if not os.path.exists(path):
         os.mkdir(path)
 
-    time.sleep(2)
+    time.sleep(1)
     cmd = ''
 
+    #Using quit command
     while '<quit>' not in cmd:
-        menu_list()
+        user_menu_list()
         cmd = input('>> ')
-        while not cmd.startswith("touch") and not menu_inputs(cmd):
-            menu_list()
+        while not cmd.startswith("touch") and not menu_input_valid(cmd):
+            user_menu_list()
             cmd = input('>> ')
-        if cmd!='revocate':
-            server_sock.send(encrypt_pipeline({
+        if cmd!='revocate':  #added revocate option in user menu
+            CDS_sock.send(encrypt_pipeline({
                 'cmd': cmd
             }))
         cmd_parsed = cmd.split()
 
         if cmd_parsed[0] == 'touch':
             print("File has been created successfully")
-            CDS_response = decrypt_pipeline(server_sock.recv(1024))
+            CDS_response = decrypt_pipeline(CDS_sock.recv(1024))
 
             if 'error' in CDS_response:
                 print(CDS_response['payload'])
-                time.sleep(2)
+                time.sleep(4)
                 continue
 
             (file_name, file_extension) = os.path.splitext(cmd_parsed[1])
             encrypted_file_name = peer_fernet_enc_dec.encrypt(file_name.encode('ascii')).decode('ascii') + file_extension
-            path = os.path.join(file_path, peer_id, encrypted_file_name)
+            path = os.path.join(curr_file_path, peer_id, encrypted_file_name)
             f = open(path, 'w')
             f.close()
-            entity_mapper[cmd_parsed[1]] = encrypted_file_name
+            user_entity_mapper[cmd_parsed[1]] = encrypted_file_name
 
             request = {
                 'cmd': cmd
@@ -179,21 +197,21 @@ def menu():
                 peer_sock = socket(AF_INET, SOCK_STREAM)
                 peer_sock.connect((peer_IP, int(peer_PORT)))
                 peer_sock.send(encrypt_pipeline(request))
-                print('{0} replicated the file successfully in our system'.format(key))
+                print('{0} replicated the file successfully in the system'.format(key))
                 peer_sock.close()
                 time.sleep(1)
-        elif cmd_parsed[0] == 'mkdir':
-            CDS_response = decrypt_pipeline(server_sock.recv(1024))
+        elif cmd_parsed[0] == 'mkdir':           #creating directory
+            CDS_response = decrypt_pipeline(CDS_sock.recv(1024))
 
             if 'error' in CDS_response:
                 print(CDS_response['payload'])
-                time.sleep(2)
+                time.sleep(3)
                 continue
 
-            encrypted_folder= peer_fernet_enc_dec.encrypt(cmd_parsed[1].encode('ascii')).decode('ascii')
-            path = os.path.join(file_path, peer_id, encrypted_folder)
+            encrypted_folder_name = peer_fernet_enc_dec.encrypt(cmd_parsed[1].encode('ascii')).decode('ascii')
+            path = os.path.join(curr_file_path, peer_id, encrypted_folder_name)
             os.mkdir(path)
-            entity_mapper[cmd_parsed[1]] = encrypted_folder
+            user_entity_mapper[cmd_parsed[1]] = encrypted_folder_name
 
             request = {
                 'cmd': cmd
@@ -205,11 +223,11 @@ def menu():
                 peer_sock = socket(AF_INET, SOCK_STREAM)
                 peer_sock.connect((peer_IP, int(peer_PORT)))
                 peer_sock.send(encrypt_pipeline(request))
-                print('{0} replicated file successfully'.format(key))
+                print('{0} replicated the file successfully in the system'.format(key))
                 peer_sock.close()
-                time.sleep(1)
-        elif cmd_parsed[0] == 'rmdir':
-            CDS_response = decrypt_pipeline(server_sock.recv(1024))
+                time.sleep(3)
+        elif cmd_parsed[0] == 'rmdir':          #removing the directory
+            CDS_response = decrypt_pipeline(CDS_sock.recv(1024))
 
             if 'error' in CDS_response:
                 print(CDS_response['payload'])
@@ -226,10 +244,10 @@ def menu():
                 peer_sock = socket(AF_INET, SOCK_STREAM)
                 peer_sock.connect((peer_IP, int(peer_PORT)))
                 peer_sock.send(encrypt_pipeline(request))
-                print('{0} replicated file successfully in the system'.format(key))
+                print('{0} replicated the file successfully in the system'.format(key))
                 peer_sock.close()
-                time.sleep(1)
-        elif cmd == 'revocate':
+                time.sleep(2)
+        elif cmd == 'revocate':   #key revocation
             session_key = Fernet.generate_key()
             encoded_key = base64.urlsafe_b64encode(session_key)
             encoded_key_str = encoded_key.decode('utf-8')
@@ -237,25 +255,27 @@ def menu():
                 f.write(encoded_key_str)
             print("Key revocation completed!")
         elif cmd_parsed[0] == 'cat':
-            CDS_response = decrypt_pipeline(server_sock.recv(1024))
+            CDS_response = decrypt_pipeline(CDS_sock.recv(1024))
             if 'error' in CDS_response:
                 print(CDS_response['payload'])
-                time.sleep(3)
+                time.sleep(2)
             else:
                 content = ''
                 inp = ''
-                print('Typing the content...')
+                print('Type the content...')
                 print('<exit> to quit')
                 file_enc = Fernet(eval(CDS_response['encryption_key']))
+                content = ''
                 while True:
                     inp = input()
                     if inp == '<exit>':
                         break
                     content += inp + '\n'
 
+
                 encrypted_content = str(file_enc.encrypt(content.encode('ascii')))
-                encrypted_file = entity_mapper[cmd_parsed[1]]
-                path = os.path.join(file_path, peer_id, encrypted_file)
+                encrypted_file_name = user_entity_mapper[cmd_parsed[1]]
+                path = os.path.join(curr_file_path, peer_id, encrypted_file_name)
                 f = open(path, 'w+')
                 f.write(encrypted_content)
                 f.close()
@@ -274,18 +294,18 @@ def menu():
                     peer_sock.send(encrypt_pipeline(request))
                     print('{0}: write to {1} successful'.format(key, cmd_parsed[1]))
                     time.sleep(1)
-                server_sock.send(encrypt_pipeline({
+                CDS_sock.send(encrypt_pipeline({
                     'payload': 'WRITE_ACK'
                 }))
         elif cmd_parsed[0] == 'read':
-            CDS_response = decrypt_pipeline(server_sock.recv(1024))
+            CDS_response = decrypt_pipeline(CDS_sock.recv(1024))
             if 'error' in CDS_response:
                 print(CDS_response['payload'])
             else:
                 found_content = False
                 if peer_id in CDS_response['replicated_peer_info']:
-                    encrypted_file_name = entity_mapper[cmd_parsed[1]]
-                    path = os.path.join(file_path, peer_id, encrypted_file_name)
+                    encrypted_file_name = user_entity_mapper[cmd_parsed[1]]
+                    path = os.path.join(curr_file_path, peer_id, encrypted_file_name)
                     found_content = False
 
                     if os.path.exists(path):
@@ -297,11 +317,9 @@ def menu():
                         with open(path, 'r') as f:
                             lines = f.readlines()
 
-                        if len(lines) != 0:
-                            decrypted_text = file_enc.decrypt(eval(lines[0])).decode('ascii')
-                            print(decrypted_text)
-                        else:
-                            print('<file is empty>')
+                        decrypted_text = file_enc.decrypt(eval(lines[0])).decode('ascii') if len(lines) != 0 else '<file empty>'
+                        print(decrypted_text)
+
                         found_content = True
 
                 request = {
@@ -327,26 +345,26 @@ def menu():
                         else:
                             print('<file empty>')
                         found_content = True
-                    time.sleep(1)
+                    time.sleep(3)
         elif cmd_parsed[0] == 'rm':
-            CDS_response = decrypt_pipeline(server_sock.recv(1024))
+            CDS_response = decrypt_pipeline(CDS_sock.recv(1024))
             if 'error' in CDS_response:
                 print(CDS_response['payload'])
             else:
                 print(CDS_response['payload'])
-        elif cmd_parsed[0] == 'restore':
-            CDS_response = decrypt_pipeline(server_sock.recv(1024))
+        elif cmd_parsed[0] == 'restore':     #restoring the file
+            CDS_response = decrypt_pipeline(CDS_sock.recv(1024))
             if 'error' in CDS_response:
                 print(CDS_response['payload'])
             elif CDS_response['payload'] == 'SIG_REPLICATE':
-                encrypted_file_name = entity_mapper[cmd_parsed[1]]
-                path = os.path.join(file_path, peer_id, encrypted_file_name)
+                encrypted_file_name = user_entity_mapper[cmd_parsed[1]]
+                path = os.path.join(curr_file_path, peer_id, encrypted_file_name)
                 request = {}
                 if not os.path.exists(path):
-                    print('Umm... seems like the file is deleted at the owner')
+                    print('It appears that the owner has deleted the file.')
                 else:
-                    with open(path, 'r') as f:
-                        lines = f.readlines()
+                    with open(path, 'r') as file:
+                        lines = file.readlines()
                     content = ''
                     for line in lines:
                         content += line
@@ -354,7 +372,7 @@ def menu():
                         'cmd': cmd,
                         'payload': content
                     }
-                    f.close()
+                    file.close()
                     for peer_to_replicate in CDS_response['peers_to_replicate']:
                         peer_IP = peer_to_replicate['IP']
                         peer_PORT = peer_to_replicate['PORT']
@@ -364,11 +382,11 @@ def menu():
                         peer_sock.send(encrypt_pipeline(request))
                         time.sleep(1)
         elif cmd_parsed[0] == 'ls':
-            CDS_response = decrypt_pipeline(server_sock.recv(1024))
+            CDS_response = decrypt_pipeline(CDS_sock.recv(1024))
             for line in CDS_response['payload']:
                 print(line)
-        time.sleep(2)
-    server_sock.close()
+        time.sleep(4)
+    CDS_sock.close()
 
 def peer_to_peer_request_handler(peer_sock, address):
     peer_req = decrypt_pipeline(peer_sock.recv(1024))
@@ -382,34 +400,34 @@ def peer_to_peer_request_handler(peer_sock, address):
     if cmd[0] == 'touch':
         (file_name, file_extension) = os.path.splitext(cmd[1])
         encrypted_file_name = peer_fernet_enc_dec.encrypt(file_name.encode('ascii')).decode('ascii') + file_extension
-        path = os.path.join(file_path, peer_id, encrypted_file_name)
+        path = os.path.join(curr_file_path, peer_id, encrypted_file_name)
 
-        entity_mapper[cmd[1]] = encrypted_file_name
+        user_entity_mapper[cmd[1]] = encrypted_file_name
         f = open(path, 'w')
-        print('File creation is successful in the system')
+        print('File creation successful')
         f.close()
     elif cmd[0] == 'mkdir':
         encrypted_folder_name = peer_fernet_enc_dec.encrypt(cmd[1].encode('ascii')).decode('ascii')
-        path = os.path.join(file_path, peer_id, encrypted_folder_name)
+        path = os.path.join(curr_file_path, peer_id, encrypted_folder_name)
         os.mkdir(path)
 
-        entity_mapper[cmd[1]] = encrypted_folder_name
+        user_entity_mapper[cmd[1]] = encrypted_folder_name
     elif cmd[0] == 'rmdir':
-        encrypted_folder_name = entity_mapper[cmd[1]]
-        path = os.path.join(file_path, peer_id, encrypted_folder_name)
+        encrypted_folder_name = user_entity_mapper[cmd[1]]
+        path = os.path.join(curr_file_path, peer_id, encrypted_folder_name)
         os.rmdir(path)
     elif cmd[0] == 'cat' or cmd[0] == 'restore':
-        encrypted_file_name = entity_mapper[cmd[1]]
-        path = os.path.join(file_path, peer_id, encrypted_file_name)
+        encrypted_file_name = user_entity_mapper[cmd[1]]
+        path = os.path.join(curr_file_path, peer_id, encrypted_file_name)
         # extract content
         payload = peer_req['payload']
         f = open(path, 'w+')
         f.write(payload)
-        print('update to file is successful')
+        print('Write to file successful')
         f.close()
     elif cmd[0] == 'read':
-        encrypted_file_name = entity_mapper[cmd[1]]
-        path = os.path.join(file_path, peer_id, encrypted_file_name)
+        encrypted_file_name = user_entity_mapper[cmd[1]]
+        path = os.path.join(curr_file_path, peer_id, encrypted_file_name)
         response = {}
         if not os.path.exists(path):
             response = {
@@ -417,16 +435,16 @@ def peer_to_peer_request_handler(peer_sock, address):
                 'payload': '{0} could not be located at {1}'.format(cmd[1], peer_id)
             }
         else:
-            with open(path, 'r') as f:
-                contents = f.readlines()
+            with open(path, 'r') as file:
+                contents = file.readlines()
             response = {
                 'payload': contents
             }
-            f.close()
+            file.close()
         peer_sock.send(encrypt_pipeline(response))
     elif cmd[0] == 'rm':
-        encrypted_file_name = entity_mapper[cmd[1]]
-        path = os.path.join(file_path, peer_id, encrypted_file_name)
+        encrypted_file_name = user_entity_mapper[cmd[1]]
+        path = os.path.join(curr_file_path, peer_id, encrypted_file_name)
         response = {}
         if not os.path.exists(path):
             response = {
@@ -442,7 +460,7 @@ def peer_to_peer_request_handler(peer_sock, address):
             else:
                 response = {
                     'error': 400,
-                    'payload': 'some issue occured while deleting {0}'.format(cmd[1])
+                    'payload': 'There was a problem encountered during the deletion process. {0}'.format(cmd[1])
                 }
         if 'error' in response:
             print(response['payload'])
@@ -450,7 +468,7 @@ def peer_to_peer_request_handler(peer_sock, address):
             print(response['payload'])
         peer_sock.send(encrypt_pipeline(response))
     elif cmd[0] == 'FILE_LISTING_RQST':
-        path = os.path.join(file_path, peer_id)
+        path = os.path.join(curr_file_path, peer_id)
         files = os.listdir(path)
         decrypted_file_names = []
         for file in files:
