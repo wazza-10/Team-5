@@ -3,7 +3,7 @@ import random
 import time
 import os
 import sys
-import json
+import Peer_management
 import Attribute
 import Malicious_activity_watcher
 from socket import *
@@ -50,7 +50,7 @@ def process_peer_request(peer_sock, address):
         username = login_request['username']
         password = login_request['password']
 
-        if username in Peer_management.user_credentials and Peer_management.user_credentials[username] == password:
+        if username in Attribute.user_credentials and Attribute.user_credentials[username] == password:
             response = Attribute.encrypt_pipeline({
                 'payload': 'Login successful!'
             })
