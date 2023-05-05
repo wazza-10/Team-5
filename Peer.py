@@ -2,9 +2,7 @@ import base64
 import os
 import sys
 import time
-import json
 import Attribute
-import P2Prequest_handler
 from socket import *
 from threading import *
 from cryptography.fernet import Fernet
@@ -94,23 +92,23 @@ def menu():
         password = input('password: >> ')
         try:
             #sending to cds
-            CDS_sock.send(Attribute.encrypt_pipeline({
+            CDS_sock.send(Attribute.encrypt_pipeline_client({
                 'username': username,
                 'password': password
             }))
             #getting response
-            CDS_response = Attribute.decrypt_pipeline(CDS_sock.recv(1024))
+            CDS_response = Attribute.decrypt_pipeline_client(CDS_sock.recv(1024))
             print(CDS_response['payload'])
             if 'error' not in CDS_response:
                 break
         except:
             pass
 
-    CDS_sock.send(Attribute.encrypt_pipeline({
+    CDS_sock.send(Attribute.encrypt_pipeline_client({
         'IP': IP,
         'PORT': str(PORT)
     }))
-    CDS_response = Attribute.decrypt_pipeline(CDS_sock.recv(1024))
+    CDS_response = Attribute.decrypt_pipeline_client(CDS_sock.recv(1024))
     #printing CDS response
     print(CDS_response)
     print(CDS_response['message'])
@@ -133,14 +131,14 @@ def menu():
                 user_menu_list()
                 cmd = input('>> ')
             if cmd!='revocate':  #added revocate option in user menu
-                CDS_sock.send(Attribute.encrypt_pipeline({
+                CDS_sock.send(Attribute.encrypt_pipeline_client({
                     'cmd': cmd
                 }))
             cmd_parsed = cmd.split()
 
             if cmd_parsed[0] == 'touch':
                 print("File has been created successfully")
-                CDS_response = Attribute.decrypt_pipeline(CDS_sock.recv(1024))
+                CDS_response = Attribute.decrypt_pipeline_client(CDS_sock.recv(1024))
 
                 if 'error' in CDS_response:
                     print(CDS_response['payload'])
@@ -164,12 +162,12 @@ def menu():
                     print('Creating {0} @ {1}:{2}'.format(cmd_parsed[1], peer_IP, peer_PORT))
                     peer_sock = socket(AF_INET, SOCK_STREAM)
                     peer_sock.connect((peer_IP, int(peer_PORT)))
-                    peer_sock.send(Attribute.encrypt_pipeline(request))
+                    peer_sock.send(Attribute.encrypt_pipeline_client(request))
                     print('{0} replicated the file successfully in the system'.format(key))
                     peer_sock.close()
                     time.sleep(1)
             elif cmd_parsed[0] == 'mkdir':           #creating directory
-                CDS_response = Attribute.decrypt_pipeline(CDS_sock.recv(1024))
+                CDS_response = Attribute.decrypt_pipeline_client(CDS_sock.recv(1024))
 
                 if 'error' in CDS_response:
                     print(CDS_response['payload'])
@@ -190,12 +188,12 @@ def menu():
                     print('Creating @ {0}:{1}'.format(peer_IP, peer_PORT))
                     peer_sock = socket(AF_INET, SOCK_STREAM)
                     peer_sock.connect((peer_IP, int(peer_PORT)))
-                    peer_sock.send(Attribute.encrypt_pipeline(request))
+                    peer_sock.send(Attribute.encrypt_pipeline_client(request))
                     print('{0} replicated the file successfully in the system'.format(key))
                     peer_sock.close()
                     time.sleep(3)
             elif cmd_parsed[0] == 'rmdir':          #removing the directory
-                CDS_response = Attribute.decrypt_pipeline(CDS_sock.recv(1024))
+                CDS_response = Attribute.decrypt_pipeline_client(CDS_sock.recv(1024))
 
                 if 'error' in CDS_response:
                     print(CDS_response['payload'])
@@ -211,7 +209,7 @@ def menu():
                     print('Connecting to {0} using {1}:{2}'.format(key, peer_IP, peer_PORT))
                     peer_sock = socket(AF_INET, SOCK_STREAM)
                     peer_sock.connect((peer_IP, int(peer_PORT)))
-                    peer_sock.send(Attribute.encrypt_pipeline(request))
+                    peer_sock.send(Attribute.encrypt_pipeline_client(request))
                     print('{0} replicated the file successfully in the system'.format(key))
                     peer_sock.close()
                     time.sleep(2)
@@ -223,7 +221,7 @@ def menu():
                     f.write(encoded_key_str)
                 print("Key revocation completed!")
             elif cmd_parsed[0] == 'cat':
-                CDS_response = Attribute.decrypt_pipeline(CDS_sock.recv(1024))
+                CDS_response = Attribute.decrypt_pipeline_client(CDS_sock.recv(1024))
                 if 'error' in CDS_response:
                     print(CDS_response['payload'])
                     time.sleep(2)
@@ -259,14 +257,14 @@ def menu():
                         print('Writing @ {0}:{1}'.format(peer_IP, peer_PORT))
                         peer_sock = socket(AF_INET, SOCK_STREAM)
                         peer_sock.connect((peer_IP, int(peer_PORT)))
-                        peer_sock.send(Attribute.encrypt_pipeline(request))
+                        peer_sock.send(Attribute.encrypt_pipeline_client(request))
                         print('{0}: write to {1} successful'.format(key, cmd_parsed[1]))
                         time.sleep(1)
-                    CDS_sock.send(Attribute.encrypt_pipeline({
+                    CDS_sock.send(Attribute.encrypt_pipeline_client({
                         'payload': 'WRITE_ACK'
                     }))
             elif cmd_parsed[0] == 'read':
-                CDS_response = Attribute.decrypt_pipeline(CDS_sock.recv(1024))
+                CDS_response = Attribute.decrypt_pipeline_client(CDS_sock.recv(1024))
                 if 'error' in CDS_response:
                     print(CDS_response['payload'])
                 else:
@@ -301,8 +299,8 @@ def menu():
                         print('Connecting to {0} using {1}:{2}'.format(key, peer_IP, peer_PORT))
                         peer_sock = socket(AF_INET, SOCK_STREAM)
                         peer_sock.connect((peer_IP, int(peer_PORT)))
-                        peer_sock.send(Attribute.encrypt_pipeline(request))
-                        peer_response = Attribute.decrypt_pipeline(peer_sock.recv(1024))
+                        peer_sock.send(Attribute.encrypt_pipeline_client(request))
+                        peer_response = Attribute.decrypt_pipeline_client(peer_sock.recv(1024))
                         if 'error' in peer_response:
                             print(peer_response['payload'])
                         else:
@@ -315,13 +313,13 @@ def menu():
                             found_content = True
                         time.sleep(3)
             elif cmd_parsed[0] == 'rm':
-                CDS_response = Attribute.decrypt_pipeline(CDS_sock.recv(1024))
+                CDS_response = Attribute.decrypt_pipeline_client(CDS_sock.recv(1024))
                 if 'error' in CDS_response:
                     print(CDS_response['payload'])
                 else:
                     print(CDS_response['payload'])
             elif cmd_parsed[0] == 'restore':     #restoring the file
-                CDS_response = Attribute.decrypt_pipeline(CDS_sock.recv(1024))
+                CDS_response = Attribute.decrypt_pipeline_client(CDS_sock.recv(1024))
                 if 'error' in CDS_response:
                     print(CDS_response['payload'])
                 elif CDS_response['payload'] == 'SIG_REPLICATE':
@@ -347,10 +345,10 @@ def menu():
                             print('Replicating @ {0}:{1}'.format(peer_IP, peer_PORT))
                             peer_sock = socket(AF_INET, SOCK_STREAM)
                             peer_sock.connect((peer_IP, int(peer_PORT)))
-                            peer_sock.send(Attribute.encrypt_pipeline(request))
+                            peer_sock.send(Attribute.encrypt_pipeline_client(request))
                             time.sleep(1)
             elif cmd_parsed[0] == 'ls':
-                CDS_response = Attribute.decrypt_pipeline(CDS_sock.recv(1024))
+                CDS_response = Attribute.decrypt_pipeline_client(CDS_sock.recv(1024))
                 for line in CDS_response['payload']:
                     print(line)
             time.sleep(4)
@@ -359,7 +357,7 @@ def menu():
     CDS_sock.close()
 
 def peer_to_peer_request_handler(peer_sock, address):
-    peer_req = Attribute.decrypt_pipeline(peer_sock.recv(1024))
+    peer_req = Attribute.decrypt_pipeline_client(peer_sock.recv(1024))
     if not peer_req:
         return
 
@@ -411,7 +409,7 @@ def peer_to_peer_request_handler(peer_sock, address):
                 'payload': contents
             }
             file.close()
-        peer_sock.send(Attribute.encrypt_pipeline(response))
+        peer_sock.send(Attribute.encrypt_pipeline_client(response))
     elif cmd[0] == 'rm':
         encrypted_file_name = Attribute.user_entity_mapper[cmd[1]]
         path = os.path.join(Attribute.curr_file_path, peer_id, encrypted_file_name)
@@ -436,7 +434,7 @@ def peer_to_peer_request_handler(peer_sock, address):
             print(response['payload'])
         else:
             print(response['payload'])
-        peer_sock.send(Attribute.encrypt_pipeline(response))
+        peer_sock.send(Attribute.encrypt_pipeline_client(response))
     elif cmd[0] == 'FILE_LISTING_RQST':
         path = os.path.join(Attribute.curr_file_path, peer_id)
         files = os.listdir(path)
@@ -452,7 +450,7 @@ def peer_to_peer_request_handler(peer_sock, address):
             'peer_id': peer_id,
             'file_list': decrypted_file_names
         }
-        peer_sock.send(Attribute.encrypt_pipeline(response))
+        peer_sock.send(Attribute.encrypt_pipeline_client(response))
 
 if __name__ == '__main__':
     menu_thread = Thread(target = menu)

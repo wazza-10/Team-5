@@ -1,7 +1,5 @@
 import base64
-import random
 import time
-import os
 import sys
 import Peer_management
 import Attribute
@@ -39,10 +37,6 @@ print('CDS is running in the system... IP: {0} PORT: {1}'.format(Attribute.User_
 peer_count = 0
 
 
-# with open(os.path.join(Attribute.curr_file_path, 'user_credentials.json'), 'r') as file:
-#     user_credentials = json.loads(file.read())
-
-
 def process_peer_request(peer_sock, address):
     login_request = Attribute.decrypt_pipeline(peer_sock.recv(1024))
 
@@ -50,7 +44,7 @@ def process_peer_request(peer_sock, address):
         username = login_request['username']
         password = login_request['password']
 
-        if username in Attribute.user_credentials and Attribute.user_credentials[username] == password:
+        if username in Peer_management.user_credentials and Peer_management.user_credentials[username] == password:
             response = Attribute.encrypt_pipeline({
                 'payload': 'Login successful!'
             })

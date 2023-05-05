@@ -51,7 +51,7 @@ peer_fernet_enc_dec = Fernet(peer_key)
 
 
 #encrypting code and decrypting code
-def encrypt_pipeline(json_obj):
+def encrypt_pipeline_client(json_obj):
     with open('authentication_key.txt', 'r') as f:
         key = f.read()
     try:
@@ -62,7 +62,7 @@ def encrypt_pipeline(json_obj):
     except:
         print("Authentication error")
 
-def decrypt_pipeline(cipher):
+def decrypt_pipeline_client(cipher):
     with open('authentication_key.txt', 'r') as f:
         time.sleep(1)
         key = f.read()
